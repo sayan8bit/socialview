@@ -50,6 +50,37 @@ function escapeAttr(s) {
                   .replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+/* Helper to programmatically load external scripts (for platforms like Twitter that require it) */
+function loadExternalScript(src, globalVarName) {
+  return new Promise((resolve) => {
+    if (window[globalVarName]) {
+      resolve(window[globalVarName]);
+      return;
+    }
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      const interval = setInterval(() => {
+        if (window[globalVarName]) {
+          clearInterval(interval);
+          resolve(window[globalVarName]);
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(interval);
+        resolve(null);
+      }, 15000);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(window[globalVarName]);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+}
+
 /* ── YouTube ─────────────────────────────────────────────── */
 function getYouTubeId(url) {
   try {
@@ -62,77 +93,108 @@ function getYouTubeId(url) {
   return null;
 }
 
-function renderYouTube(url) {
+function renderYouTube(url, onload, onerror) {
   const id = getYouTubeId(url);
   if (!id) return null;
   const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
-  return `<iframe
-    src="https://www.youtube.com/embed/${safeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1"
-    style="position:absolute;inset:0;width:100%;height:100%;border:none;"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen
-    title="YouTube Video">
-  </iframe>`;
+  const iframe = document.createElement('iframe');
+  iframe.src = `https://www.youtube.com/embed/${safeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+  iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+  iframe.allowFullscreen = true;
+  iframe.title = 'YouTube Video';
+  iframe.onload = onload;
+  iframe.onerror = onerror;
+  return iframe;
 }
 
 /* ── Facebook ─────────────────────────────────────────────── */
-function renderFacebook(url) {
-  const safeUrl = escapeAttr(url);
-  const appId   = (typeof CONFIG !== 'undefined' && CONFIG.META_APP_ID) ? CONFIG.META_APP_ID : '';
-  const sdk     = appId
-    ? `https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v20.0&appId=${encodeURIComponent(appId)}`
-    : `https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v20.0`;
-
+function renderFacebook(url, onload, onerror) {
   let isVideo = false;
-  try { const u = new URL(url); isVideo = u.pathname.includes('/videos/') || u.hostname === 'fb.watch'; } catch(_) {}
+  try {
+    const u = new URL(url);
+    isVideo = u.pathname.includes('/videos/') || u.pathname.includes('/watch') || u.pathname.includes('/reel/') || u.hostname === 'fb.watch';
+  } catch(_) {}
 
-  const tag = isVideo
-    ? `<div class="fb-video" data-href="${safeUrl}" data-width="auto" data-allowfullscreen="true" data-autoplay="true"></div>`
-    : `<div class="fb-post"  data-href="${safeUrl}" data-width="auto"></div>`;
+  const iframe = document.createElement('iframe');
+  if (isVideo) {
+    iframe.src = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0&autoplay=1`;
+    iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;';
+  } else {
+    iframe.src = `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(url)}&show_text=true`;
+    iframe.style.cssText = 'width:100%;height:100%;border:none;';
+  }
+  iframe.scrolling = isVideo ? 'no' : 'yes';
+  iframe.frameBorder = '0';
+  iframe.allowFullscreen = true;
+  iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
+  iframe.onload = onload;
+  iframe.onerror = onerror;
 
-  return `
-    <div id="fb-root"></div>
-    <script async defer src="${sdk}"><\/script>
-    <div style="padding:20px;max-width:560px;width:100%;margin:auto;">${tag}</div>`;
+  if (isVideo) {
+    return iframe;
+  } else {
+    const container = document.createElement('div');
+    container.style.cssText = 'max-width:550px;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+    container.appendChild(iframe);
+    return container;
+  }
 }
 
 /* ── Instagram ─────────────────────────────────────────────── */
-function renderInstagram(url) {
+function renderInstagram(url, onload, onerror) {
   let clean;
-  try { const u = new URL(url); clean = `${u.origin}${u.pathname}`.replace(/\/?$/, '/'); }
-  catch(_) { clean = url; }
-  const safeUrl = escapeAttr(clean);
+  try {
+    const u = new URL(url);
+    clean = `${u.origin}${u.pathname}`.replace(/\/?$/, '/');
+  } catch(_) {
+    clean = url;
+  }
+  
+  let embedUrl = clean;
+  if (!embedUrl.endsWith('/embed/')) {
+    embedUrl += 'embed/';
+  }
 
-  return `
-    <div style="padding:16px;max-width:480px;width:100%;margin:auto;overflow:hidden;">
-      <blockquote class="instagram-media"
-        data-instgrm-captioned
-        data-instgrm-permalink="${safeUrl}"
-        data-instgrm-version="14"
-        style="background:#fff;border:0;border-radius:3px;margin:0;width:calc(100% - 2px);min-width:300px;">
-      </blockquote>
-      <script async src="https://www.instagram.com/embed.js"><\/script>
-    </div>`;
+  const container = document.createElement('div');
+  container.style.cssText = 'max-width:480px;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+
+  const iframe = document.createElement('iframe');
+  iframe.src = embedUrl;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:12px;background:#000;';
+  iframe.frameBorder = '0';
+  iframe.scrolling = 'yes';
+  iframe.allowTransparency = true;
+  iframe.onload = onload;
+  iframe.onerror = onerror;
+
+  container.appendChild(iframe);
+  return container;
 }
 
 /* ── TikTok ─────────────────────────────────────────────────── */
-function renderTikTok(url) {
-  const match = url.match(/\/video\/(\d+)/);
+function renderTikTok(url, onload, onerror) {
+  const match = url.match(/\/video\/(\d+)/) || url.match(/\/v\/(\d+)/);
   if (!match) return null;
-  const safeId  = match[1].replace(/\D/g, '');
-  const safeUrl = escapeAttr(url);
-  return `
-    <div style="max-width:400px;width:100%;margin:auto;">
-      <blockquote class="tiktok-embed" cite="${safeUrl}" data-video-id="${safeId}"
-        style="max-width:100%;min-width:300px;">
-        <section></section>
-      </blockquote>
-      <script async src="https://www.tiktok.com/embed.js"><\/script>
-    </div>`;
+  const safeId = match[1];
+
+  const container = document.createElement('div');
+  container.style.cssText = 'max-width:500px;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+
+  const iframe = document.createElement('iframe');
+  iframe.src = `https://www.tiktok.com/embed/v2/${safeId}`;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:12px;background:#000;';
+  iframe.frameBorder = '0';
+  iframe.allowFullscreen = true;
+  iframe.onload = onload;
+  iframe.onerror = onerror;
+
+  container.appendChild(iframe);
+  return container;
 }
 
 /* ── Twitter / X ─────────────────────────────────────────────── */
-function renderTwitter(url) {
+function renderTwitter(url, onload, onerror) {
   let tweetUrl = url;
   try {
     const u = new URL(url);
@@ -140,13 +202,38 @@ function renderTwitter(url) {
     tweetUrl = `${u.origin}${u.pathname}`;
   } catch(_) {}
   const safeUrl = escapeAttr(tweetUrl);
-  return `
-    <div style="max-width:560px;width:100%;margin:auto;padding:16px;">
-      <blockquote class="twitter-tweet" data-theme="dark">
-        <a href="${safeUrl}">Loading tweet…</a>
-      </blockquote>
-      <script async src="https://platform.twitter.com/widgets.js"><\/script>
-    </div>`;
+
+  const container = document.createElement('div');
+  container.style.cssText = 'max-width:560px;width:100%;margin:auto;padding:16px;box-sizing:border-box;';
+
+  const bq = document.createElement('blockquote');
+  bq.className = 'twitter-tweet';
+  bq.setAttribute('data-theme', 'dark');
+  
+  const link = document.createElement('a');
+  link.href = safeUrl;
+  link.textContent = 'Loading tweet…';
+  bq.appendChild(link);
+  
+  container.appendChild(bq);
+
+  loadExternalScript('https://platform.twitter.com/widgets.js', 'twttr')
+    .then(twttr => {
+      if (twttr) {
+        twttr.widgets.load(container).then(() => {
+          onload();
+        }).catch(() => {
+          onerror();
+        });
+      } else {
+        onload();
+      }
+    })
+    .catch(() => {
+      onerror();
+    });
+
+  return container;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -280,26 +367,32 @@ function openLink(rawUrl) {
   window.history.pushState({ url, platform }, '', '#view');
 
   /* ── render embed ── */
-  let embedHtml = null;
+  let embedNode = null;
+  const hideSkeleton = () => {
+    skeleton.classList.add('gone');
+  };
+  const onEmbedError = () => {
+    skeleton.classList.add('gone');
+    showToast('⚠️ Failed to load content');
+  };
+
   switch (platform) {
-    case PLATFORMS.YOUTUBE:   embedHtml = renderYouTube(url);   break;
-    case PLATFORMS.FACEBOOK:  embedHtml = renderFacebook(url);  break;
-    case PLATFORMS.INSTAGRAM: embedHtml = renderInstagram(url); break;
-    case PLATFORMS.TIKTOK:    embedHtml = renderTikTok(url);    break;
-    case PLATFORMS.TWITTER:   embedHtml = renderTwitter(url);   break;
+    case PLATFORMS.YOUTUBE:   embedNode = renderYouTube(url, hideSkeleton, onEmbedError);   break;
+    case PLATFORMS.FACEBOOK:  embedNode = renderFacebook(url, hideSkeleton, onEmbedError);  break;
+    case PLATFORMS.INSTAGRAM: embedNode = renderInstagram(url, hideSkeleton, onEmbedError); break;
+    case PLATFORMS.TIKTOK:    embedNode = renderTikTok(url, hideSkeleton, onEmbedError);    break;
+    case PLATFORMS.TWITTER:   embedNode = renderTwitter(url, hideSkeleton, onEmbedError);   break;
     default: break;
   }
 
-  if (embedHtml) {
-    /* YouTube gets true full-screen iframe wrapper */
-    if (platform === PLATFORMS.YOUTUBE) {
+  if (embedNode) {
+    if (platform === PLATFORMS.YOUTUBE || (platform === PLATFORMS.FACEBOOK && embedNode.tagName === 'IFRAME')) {
       embedWrap.style.cssText = 'position:absolute;inset:0;';
-      embedWrap.innerHTML = embedHtml;
     } else {
       embedWrap.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:auto;';
-      embedWrap.innerHTML = embedHtml;
     }
-    setTimeout(() => skeleton.classList.add('gone'), 800);
+    embedWrap.innerHTML = '';
+    embedWrap.appendChild(embedNode);
   } else {
     /* generic fallback */
     embedWrap.innerHTML = '';
