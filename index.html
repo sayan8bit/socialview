@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Share any Facebook, Instagram, YouTube or TikTok link to SocialView and watch it instantly — no login needed." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="SocialView" />
+  <meta property="og:title" content="SocialView" />
+  <meta property="og:description" content="Open social media links instantly — no account needed." />
+  <meta property="og:type" content="website" />
+  <title>SocialView</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-512.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════
+       HOME SCREEN
+       ══════════════════════════════════════════════════ -->
+  <div id="home">
+
+    <!-- Brand mark -->
+    <div class="home-brand">
+      <div class="brand-icon" aria-hidden="true">🔗</div>
+      <div class="brand-name">SocialView</div>
+      <div class="brand-sub">Share any social link here to watch instantly</div>
+    </div>
+
+    <!-- Recent history pills -->
+    <div id="history-row" class="history-row" aria-label="Recent links" role="list"></div>
+
+    <!-- URL input -->
+    <div class="url-bar-wrap">
+      <div class="url-bar">
+        <input
+          id="url-input"
+          type="url"
+          inputmode="url"
+          placeholder="Paste a link…"
+          aria-label="Paste a social media link"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+        <button id="go-btn" aria-label="Open link">Open</button>
+      </div>
+    </div>
+
+    <!-- Install hint -->
+    <p class="install-hint" id="install-hint">
+      <strong>Tip:</strong> Install this app → it appears in your share sheet when you tap a link in WhatsApp or Telegram.
+    </p>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       VIEWER SCREEN  (full-screen embed)
+       ══════════════════════════════════════════════════ -->
+  <div id="viewer">
+
+    <!-- Skeleton / loading indicator -->
+    <div id="skeleton">
+      <div class="sk-pulse"></div>
+      <div class="sk-label">Loading…</div>
+    </div>
+
+    <!-- The embed lives here -->
+    <div id="embed-wrap"></div>
+
+    <!-- Generic link fallback (no embed) -->
+    <div id="generic-card">
+      <div class="gc-icon" id="gc-icon">🌐</div>
+      <div class="gc-title" id="gc-title">Web Link</div>
+      <div class="gc-url"  id="gc-url"></div>
+      <a id="gc-open" href="#" target="_blank" rel="noopener noreferrer" class="gc-open">
+        <span>🌍</span> Open in Browser
+      </a>
+    </div>
+
+    <!-- Top controls overlay (auto-hides) -->
+    <div id="viewer-controls" aria-label="Viewer controls">
+      <button id="close-btn" aria-label="Close and go back">✕</button>
+      <span id="platform-badge" aria-live="polite"></span>
+    </div>
+
+    <!-- Bottom controls overlay (auto-hides) -->
+    <div id="viewer-controls-bottom">
+      <a  id="ctrl-browser" href="#" target="_blank" rel="noopener noreferrer"
+          class="ctrl-btn" aria-label="Open in browser" title="Open in browser">🌍</a>
+      <button id="ctrl-share"  class="ctrl-btn" aria-label="Share link" title="Share">📤</button>
+      <button id="ctrl-copy"   class="ctrl-btn" aria-label="Copy link"  title="Copy link">📋</button>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       TOAST
+       ══════════════════════════════════════════════════ -->
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ══════════════════════════════════════════════════
+       PWA INSTALL BANNER
+       ══════════════════════════════════════════════════ -->
+  <div id="install-banner" role="complementary" aria-label="Install app">
+    <div class="ib-icon">📲</div>
+    <div class="ib-text">
+      <strong>Install SocialView</strong>
+      <span>Opens links directly from your share sheet</span>
+    </div>
+    <button id="ib-install" class="ib-install">Install</button>
+    <button id="ib-dismiss" class="ib-dismiss" aria-label="Dismiss">✕</button>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
